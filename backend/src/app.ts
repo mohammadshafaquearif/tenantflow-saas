@@ -25,6 +25,20 @@ export function createApp() {
     }),
   );
 
+  app.get('/', (_req, res) => {
+    res.json({
+      service: 'TenantFlow API',
+      version: '1.0.0',
+      status: 'running',
+      docs: {
+        health: '/health',
+        register: 'POST /api/v1/auth/register',
+        login: 'POST /api/v1/auth/login',
+        projects: 'GET /api/v1/projects',
+      },
+    });
+  });
+
   app.get('/health', async (_req, res) => {
     const dbHealthy = await db.healthCheck();
     res.status(dbHealthy ? 200 : 503).json({
