@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenantflow
+  labels:
+    app.kubernetes.io/name: tenantflow
+    app.kubernetes.io/part-of: tenantflow-saas

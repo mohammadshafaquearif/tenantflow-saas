@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenantflow-api
+  namespace: tenantflow
+  labels:
+    app: tenantflow-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tenantflow-api
+  template:
+    metadata:
+      labels:
+        app: tenantflow-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/YOUR_ORG/tenantflow-saas:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - configMapRef:
+                name: tenantflow-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tenantflow-secrets
+                  key: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tenantflow-secrets
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenantflow-api
+  namespace: tenantflow
+spec:
+  type: ClusterIP
+  selector:
+    app: tenantflow-api
+  ports:
+    - port: 80
+      targetPort: 4000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tenantflow-ingress
+  namespace: tenantflow
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+spec:
+  rules:
+    - host: api.tenantflow.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tenantflow-api
+                port:
+                  number: 80

@@ -1,0 +1,25 @@
+{
+  "name": "tenantflow-saas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise multi-tenant B2B SaaS platform with schema isolation, JWT+RBAC, and CI/CD",
+  "scripts": {
+    "dev": "npm run dev --workspace=backend",
+    "build": "npm run build --workspace=backend",
+    "start": "npm run start --workspace=backend",
+    "test": "npm run test --workspace=backend",
+    "test:ci": "npm run test:ci --workspace=backend",
+    "lint": "npm run lint --workspace=backend",
+    "migrate": "npm run migrate --workspace=backend",
+    "vercel-build": "npm run build --workspace=backend && npm run migrate --workspace=backend"
+  },
+  "workspaces": [
+    "backend"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@vercel/node": "^5.0.2"
+  }
+}

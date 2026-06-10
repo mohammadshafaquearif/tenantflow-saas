@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenantflow-config
+  namespace: tenantflow
+data:
+  NODE_ENV: production
+  PORT: "4000"
+  JWT_EXPIRES_IN: 8h
+  CORS_ORIGINS: "https://app.tenantflow.io"
