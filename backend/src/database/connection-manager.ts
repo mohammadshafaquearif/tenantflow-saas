@@ -15,8 +15,10 @@ export class TenantConnectionManager {
 
   constructor() {
     const useSsl =
+      config.isServerless ||
       config.databaseUrl.includes('sslmode=require') ||
       config.databaseUrl.includes('neon.tech') ||
+      config.databaseUrl.includes('prisma.io') ||
       config.isProduction;
 
     this.masterPool = new Pool({

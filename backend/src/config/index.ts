@@ -1,24 +1,16 @@
 import 'dotenv/config';
 
-function requireEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-  return value;
-}
-
 /**
- * Vercel Postgres / Neon injects these automatically when you add Storage:
- * - POSTGRES_URL              → pooled runtime connection (use this in serverless)
- * - POSTGRES_URL_NON_POOLING  → direct connection (use for migrations / DDL)
- * - POSTGRES_PRISMA_URL       → Prisma-compatible pooled URL (fallback)
+ * Vercel Postgres / Prisma Postgres injects connection strings automatically.
+ * Supported env var names (first match wins):
+ * - POSTGRES_URL, POSTGRES_PRISMA_URL, PRISMA_DATABASE_URL, DATABASE_URL
  */
 function resolveRuntimeDatabaseUrl(): string {
   return (
     process.env.POSTGRES_URL ??
-    process.env.DATABASE_URL ??
     process.env.POSTGRES_PRISMA_URL ??
+    process.env.PRISMA_DATABASE_URL ??
+    process.env.DATABASE_URL ??
     'postgresql://tenantflow:tenantflow_secret@localhost:5432/tenantflow'
   );
 }
@@ -27,6 +19,7 @@ function resolveMigrateDatabaseUrl(): string {
   return (
     process.env.POSTGRES_URL_NON_POOLING ??
     process.env.POSTGRES_URL ??
+    process.env.PRISMA_DATABASE_URL ??
     process.env.DATABASE_URL ??
     'postgresql://tenantflow:tenantflow_secret@localhost:5432/tenantflow'
   );
@@ -52,6 +45,17 @@ function resolveCorsOrigins(): string[] {
 const isProduction = process.env.NODE_ENV === 'production';
 const isVercel = Boolean(process.env.VERCEL);
 
+/** Lazy — don't crash serverless cold start; fail only on auth routes */
+export function getJwtSecret(): string {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (isVercel || isProduction) {
+    throw new Error(
+      'Missing JWT_SECRET. Add it in Vercel → Project Settings → Environment Variables',
+    );
+  }
+  return 'dev-only-secret-change-in-production';
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 4000),
@@ -60,7 +64,6 @@ export const config = {
   databaseUrl: resolveRuntimeDatabaseUrl(),
   migrateDatabaseUrl: resolveMigrateDatabaseUrl(),
   jwt: {
-    secret: isProduction ? requireEnv('JWT_SECRET') : (process.env.JWT_SECRET ?? 'dev-only-secret-change-in-production'),
     expiresIn: process.env.JWT_EXPIRES_IN ?? '8h',
   },
   corsOrigins: resolveCorsOrigins(),

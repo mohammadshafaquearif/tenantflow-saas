@@ -11,7 +11,8 @@
     "test:ci": "npm run test:ci --workspace=backend",
     "lint": "npm run lint --workspace=backend",
     "migrate": "npm run migrate --workspace=backend",
-    "vercel-build": "npm run build --workspace=backend && npm run migrate --workspace=backend"
+    "vercel-build": "npm run build --workspace=backend",
+    "vercel-build:migrate": "npm run build --workspace=backend && npm run migrate --workspace=backend"
   },
   "workspaces": [
     "backend"
