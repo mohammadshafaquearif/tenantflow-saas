@@ -20,8 +20,10 @@ Or connect the GitHub repo from [vercel.com/new](https://vercel.com/new).
 | Variable | Purpose |
 |----------|---------|
 | `POSTGRES_URL` | Pooled connection — API runtime (serverless) |
-| `POSTGRES_URL_NON_POOLING` | Direct connection — migrations (`CREATE SCHEMA`) |
+| `POSTGRES_URL_NON_POOLING` | **Required for register/migrate** — direct DDL connection |
 | `POSTGRES_PRISMA_URL` | Fallback pooled URL |
+
+> If `POSTGRES_URL_NON_POOLING` is missing, `/health` will show a warning and register may fail.
 
 ## Step 3 — Set Required Secrets
 

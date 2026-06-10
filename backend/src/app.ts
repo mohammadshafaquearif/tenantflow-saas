@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import { config } from './config/index.js';
+import { config, validateDatabaseConfig } from './config/index.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { authRouter } from './routes/auth.routes.js';
 import { projectRouter } from './routes/project.routes.js';
@@ -16,14 +16,16 @@ export function createApp() {
   app.use(helmet());
   app.use(cors({ origin: config.corsOrigins, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: config.isProduction ? 200 : 1000,
-      standardHeaders: true,
-      legacyHeaders: false,
-    }),
-  );
+  if (!config.isServerless) {
+    app.use(
+      rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: config.isProduction ? 200 : 1000,
+        standardHeaders: true,
+        legacyHeaders: false,
+      }),
+    );
+  }
 
   app.get('/', (_req, res) => {
     res.json({
@@ -41,10 +43,15 @@ export function createApp() {
 
   app.get('/health', async (_req, res) => {
     const dbHealthy = await db.healthCheck();
+    const warnings = validateDatabaseConfig(config.databaseUrl, {
+      isVercel: config.isVercel,
+      isProduction: config.isProduction,
+    });
     res.status(dbHealthy ? 200 : 503).json({
       status: dbHealthy ? 'ok' : 'degraded',
       service: 'tenantflow-api',
       timestamp: new Date().toISOString(),
+      ...(warnings.length > 0 && config.isVercel ? { warnings } : {}),
     });
   });
 

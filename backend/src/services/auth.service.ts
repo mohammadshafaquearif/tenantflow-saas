@@ -2,8 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config, getJwtSecret } from '../config/index.js';
 import { db } from '../database/connection-manager.js';
-import { executeDdl } from '../database/ddl.js';
 import { TenantConnectionManager } from '../database/connection-manager.js';
+import { dropTenantSchema, provisionTenantSchema } from '../database/tenant-schema.js';
 import type { JwtPayload, Role, Tenant, User } from '../types/index.js';
 import { BadRequestError, UnauthorizedError } from '../utils/errors.js';
 
@@ -102,55 +102,24 @@ export async function registerTenantAdmin(input: {
     [input.tenantName, slug, schemaName],
   ).then((r) => r.rows[0]);
 
-  // DDL must use direct (non-pooled) connection on Vercel Postgres / Neon
-  await executeDdl(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+  let user: User;
+  try {
+    await provisionTenantSchema(schemaName);
 
-  const user = await db.withTenant<User>(schemaName, async (client) => {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        email VARCHAR(255) NOT NULL UNIQUE,
-        password_hash VARCHAR(255) NOT NULL,
-        full_name VARCHAR(255) NOT NULL,
-        role VARCHAR(50) NOT NULL CHECK (role IN ('TENANT_ADMIN', 'MANAGER', 'MEMBER', 'VIEWER')),
-        is_active BOOLEAN NOT NULL DEFAULT true,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        created_by UUID NOT NULL REFERENCES users(id),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-        title VARCHAR(500) NOT NULL,
-        description TEXT,
-        status VARCHAR(50) NOT NULL DEFAULT 'todo',
-        priority VARCHAR(50) NOT NULL DEFAULT 'medium',
-        assignee_id UUID REFERENCES users(id),
-        created_by UUID NOT NULL REFERENCES users(id),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    const { rows } = await client.query<User>(
-      `INSERT INTO users (email, password_hash, full_name, role)
-       VALUES ($1, $2, $3, 'TENANT_ADMIN')
-       RETURNING *`,
-      [input.adminEmail.toLowerCase(), passwordHash, input.adminFullName],
-    );
-    return rows[0];
-  });
+    user = await db.withTenant<User>(schemaName, async (client) => {
+      const { rows } = await client.query<User>(
+        `INSERT INTO users (email, password_hash, full_name, role)
+         VALUES ($1, $2, $3, 'TENANT_ADMIN')
+         RETURNING *`,
+        [input.adminEmail.toLowerCase(), passwordHash, input.adminFullName],
+      );
+      return rows[0];
+    });
+  } catch (error) {
+    await db.queryMaster('DELETE FROM tenants WHERE id = $1', [tenant.id]).catch(() => undefined);
+    await dropTenantSchema(schemaName).catch(() => undefined);
+    throw error;
+  }
 
   const payload: JwtPayload = {
     sub: user.id,

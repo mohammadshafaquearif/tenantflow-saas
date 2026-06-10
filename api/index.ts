@@ -8,6 +8,14 @@ let ready: Promise<void> | undefined;
 async function ensureReady(): Promise<void> {
   if (!ready) {
     ready = (async () => {
+      const { validateDatabaseConfig } = await import('../backend/dist/config/index.js');
+      const { config } = await import('../backend/dist/config/index.js');
+      const warnings = validateDatabaseConfig(config.databaseUrl, {
+        isVercel: config.isVercel,
+        isProduction: config.isProduction,
+      });
+      warnings.forEach((w) => console.warn('[tenantflow]', w));
+
       const { runMigrations } = await import('../backend/dist/database/migrate.js');
       await runMigrations();
     })().catch((err) => {
