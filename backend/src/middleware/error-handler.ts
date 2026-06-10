@@ -27,8 +27,9 @@ export function errorHandler(
   }
 
   console.error('[unhandled]', err);
+  const showDetail = !config.isProduction || config.isVercel;
   res.status(500).json({
-    error: config.isProduction ? 'Internal server error' : err.message,
+    error: showDetail ? err.message : 'Internal server error',
     code: 'INTERNAL_ERROR',
   });
 }

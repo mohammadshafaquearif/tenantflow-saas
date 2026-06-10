@@ -1,7 +1,7 @@
-import { Pool } from 'pg';
 import { config } from '../config/index.js';
 import { db } from './connection-manager.js';
 import { TenantConnectionManager } from './connection-manager.js';
+import { executeDdl } from './ddl.js';
 
 const PUBLIC_MIGRATIONS = `
 CREATE TABLE IF NOT EXISTS tenants (
@@ -57,45 +57,24 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_id);
 `;
 
-function createMigratePool(): Pool {
-  const useSsl =
-    config.migrateDatabaseUrl.includes('sslmode=require') ||
-    config.migrateDatabaseUrl.includes('neon.tech') ||
-    config.isProduction;
-
-  return new Pool({
-    connectionString: config.migrateDatabaseUrl,
-    max: 1,
-    ssl: useSsl ? { rejectUnauthorized: false } : undefined,
-  });
-}
-
 export async function runMigrations(): Promise<void> {
-  // DDL (CREATE SCHEMA) needs direct/non-pooled connection on Vercel Postgres (Neon)
-  const pool = createMigratePool();
+  await executeDdl('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
+  await executeDdl(PUBLIC_MIGRATIONS);
 
-  try {
-    await pool.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
-    await pool.query(PUBLIC_MIGRATIONS);
+  const rows = await executeDdl<{ schema_name: string }>(
+    'SELECT schema_name FROM tenants WHERE is_active = true',
+  );
 
-    const { rows } = await pool.query<{ schema_name: string }>(
-      'SELECT schema_name FROM tenants WHERE is_active = true',
-    );
-
-    for (const { schema_name } of rows) {
-      TenantConnectionManager.assertValidSchemaName(schema_name);
-      await pool.query(`CREATE SCHEMA IF NOT EXISTS ${schema_name}`);
-      await pool.query(`SET search_path TO ${schema_name}`);
-      await pool.query(TENANT_SCHEMA_TEMPLATE);
-      await pool.query('SET search_path TO public');
-      console.log(`Migrated tenant schema: ${schema_name}`);
-    }
-
-    await pool.query('SET search_path TO public');
-    console.log('Migrations complete.');
-  } finally {
-    await pool.end();
+  for (const { schema_name } of rows) {
+    TenantConnectionManager.assertValidSchemaName(schema_name);
+    await executeDdl(`CREATE SCHEMA IF NOT EXISTS ${schema_name}`);
+    await executeDdl(`SET search_path TO ${schema_name}`);
+    await executeDdl(TENANT_SCHEMA_TEMPLATE);
+    await executeDdl('SET search_path TO public');
+    console.log(`Migrated tenant schema: ${schema_name}`);
   }
+
+  console.log('Migrations complete.');
 }
 
 const isCli = process.argv[1]?.includes('migrate');

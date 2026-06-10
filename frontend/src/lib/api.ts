@@ -29,8 +29,9 @@ async function request<T>(
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError(body.error ?? `Request failed (${res.status})`, res.status);
+    const body = await res.json().catch(() => ({})) as { error?: string; message?: string };
+    const msg = body.error ?? body.message ?? `Request failed (${res.status})`;
+    throw new ApiError(msg, res.status);
   }
 
   if (res.status === 204) return undefined as T;
@@ -44,7 +45,11 @@ export const api = {
     adminPassword: string;
     adminFullName: string;
   }) {
-    return request<{ tenant: { id: string; name: string; slug: string }; token: string }>(
+    return request<{
+      tenant: { id: string; name: string; slug: string };
+      token: string;
+      user: { id: string; email: string; full_name: string; role: string };
+    }>(
       '/api/v1/auth/register',
       { method: 'POST', body: JSON.stringify(input) },
     );

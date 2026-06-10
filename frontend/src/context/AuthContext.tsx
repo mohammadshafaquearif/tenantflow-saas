@@ -61,10 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     persist({
       token: res.token,
       user: {
-        id: '',
-        email: input.adminEmail,
-        fullName: input.adminFullName,
-        role: 'TENANT_ADMIN',
+        id: res.user.id,
+        email: res.user.email,
+        fullName: res.user.full_name,
+        role: res.user.role as AuthSession['user']['role'],
         tenantId: res.tenant.id,
       },
       tenant: res.tenant,

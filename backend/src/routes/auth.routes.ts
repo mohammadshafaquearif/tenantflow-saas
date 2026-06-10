@@ -16,6 +16,7 @@ authRouter.post('/register', async (req, res, next) => {
         slug: result.tenant.slug,
       },
       token: result.token,
+      user: result.user,
     });
   } catch (error) {
     next(error);
